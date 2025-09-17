@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Route Planning System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://unpkg.com/tailwindcss@^2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        #map { 
+            height: 100vh; 
+        }
+
+        .search-results { 
+            background-color: white; 
+            border: 1px solid #e2e8f0; 
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .search-result-item { 
+            padding: 0.5rem 1rem; 
+            cursor: pointer; 
+            background-color: #f0fdf4;
+            border-bottom: 1px solid #e2e8f0;
+            transition: background-color 0.2s;
+        }
+
+        .search-result-item:hover {
+            background-color: #d1fae5;
+        }
+
+        .sort-buttons button { 
+            margin-right: 5px; 
+            min-width: 100px;
+            padding: 8px 12px;
+            font-weight: bold;
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .dropbtn {
+            border: none;
+            cursor: pointer;
+        }
+
+        .slider-container {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: white;
+            padding: 16px;
+            min-width: 220px;
+            box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .slider-label {
+            margin-bottom: 8px;
+            display: block;
+            font-weight: bold;
+            white-space: nowrap;
+            color: #334155;
+        }
+
+        input[type=range] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #e2e8f0;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+
+        .loading {
+          padding: 0.5rem;
+          color: gray;
+          font-style: italic;
+        }
+
+       .error {
+        padding: 0.5rem;
+        color: red; 
+        font-weight: bold;
+       }
+
+       .search-result-item.highlighted {
+          background-color: #dbeafe;
+          border: 2px solid #3b92f6 
+       }
+
+       .bg-blue-100 {
+          background-color: #dbeafe;
+       }
+
+       .border-blue-500 {
+          border-color: #3b92f6;
+       }
+
+       #cancel-button {
+          position: absolute;
+          top: 70px;
+          right: 10px;
+          cursor: pointer;
+          z-index: 10;
+          padding: 4px;
+          border-radius: 4px;
+          transition: background-color 0.2s;
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+       }
+
+       #cancel-button:hover {
+          background-color: #dbeafe;
+       }
+
+       #cancel-button svg {
+          display: block;
+          width: 24px;
+          height: 24px;
+       }
+
+       #search-button-container {
+            display: flex;
+            justify-content: flex-end;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        
+        #calculate-route-btn {
+            background-color: #3b82f6;
+            color: white;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+        }
+        
+        #calculate-route-btn:hover {
+            background-color: #2563eb;
+            transform: translateY(-2px);
+        }
+        
+        #calculate-route-btn:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .search-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .route-list-item {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .route-list-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .route-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .route-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .metric-item {
+            background: #f8fafc;
+            padding: 0.5rem;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        
+        .metric-value {
+            font-weight: bold;
+            color: #3b82f6;
+            font-size: 1.1rem;
+        }
+        
+        .slider-value-display {
+            font-weight: bold;
+            background: #dbeafe;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+        }
+        
+        .panel-header {
+            background: linear-gradient(to right, #3b82f6, #60a5fa);
+            color: white;
+            padding: 1rem;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            margin: -1rem -1rem 1rem -1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .input-container {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        
+        .input-container label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #334155;
+        }
+        
+        .input-container input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .input-container input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        
+        .buttons-container {
+            display: flex;
+            flex-direction: column; 
+            gap: 12px; 
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .buttons-container > div {
+            width: 100%; 
+        }
+        
+        .buttons-container button {
+            width: 100%; 
+            margin-right: 0; 
+        }
+        
+        .slider-container {
+            min-width: 100%; /* The width of the slider panel is the same as that of the button */
+            box-sizing: border-box; 
+        }
+        
+        #route-list {
+            max-height: calc(100vh - 400px);
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+        
+        #route-list-title {
+            margin-top: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .reset-indicator {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: #ef4444;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+
+<body class="flex bg-gray-50">
+    <div id="side-panel" class="w-1/4 bg-gray-100 p-4 relative">
+        <div class="bg-white rounded-lg shadow-lg h-full relative overflow-hidden">
+            <div class="panel-header">
+                <h2 class="text-xl font-bold">Bike Route Planner</h2>
+                <p class="text-sm opacity-90">Find the best cycling routes in your city</p>
+            </div>
+
+            <div id="cancel-button" title="Reset all inputs">
+                <svg class="w-6 h-6 text-gray-600 hover:text-gray-800" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 17.94 6M18 18 6.06 6"/>
+                </svg>
+            </div>
+
+            <div class="p-4">
+                <!-- starting point input bar -->
+                <div class="input-container">
+                    <label>From:</label>
+                    <input type="text" id="start-search" placeholder="Enter starting station" class="w-full">
+                    <div id="start-search-results" class="search-results"></div>
+                </div>
+
+                <!-- end-point input bar -->
+                <div class="input-container">
+                    <label>To:</label>
+                    <input type="text" id="end-search" placeholder="Enter destination station" class="w-full">
+                    <div id="end-search-results" class="search-results"></div>
+                </div>
+
+                <!-- bikeability index buttons -->
+                <div class="buttons-container">
+                    <!-- length button -->
+                    <div style="position: relative;">
+                        <button id="distance-button" class="bg-blue-500 hover:bg-blue-400 text-white">
+                            <span>Distance</span>
+                            <span id="distance-value-display" class="slider-value-display">0.5</span>
+                        </button>
+                        <div id="toggle-length-slider" class="slider-container">
+                            <label class="slider-label">Distance Weight (0 ~ 1):</label>
+                            <input type="range" min="0" max="1" step="0.1" value="0.5" id="distanceRange">
+                            <p>Current Value: <span id="distanceValue">0.5</span></p>
+                        </div>
+                    </div>
+                    
+                    <!-- safety button -->
+                    <div style="position: relative;">
+                        <button id="safety-button" class="bg-green-500 hover:bg-green-400 text-white">
+                            <span>Safety</span>
+                            <span id="safety-value-display" class="slider-value-display">0.5</span>
+                        </button>
+                        <div id="slider-safety" class="slider-container">
+                            <label class="slider-label">Safety Weight (0 ~ 1):</label>
+                            <input type="range" min="0" max="1" step="0.1" value="0.5" id="safetyRange">
+                            <p>Current Value: <span id="safetyValue">0.5</span></p>
+                        </div>
+                    </div>
+
+                    <!-- comfort button -->
+                    <div style="position: relative;">
+                        <button id="comfort-button" class="bg-purple-500 hover:bg-purple-400 text-white">
+                            <span>Comfort</span>
+                            <span id="comfort-value-display" class="slider-value-display">0.5</span>
+                        </button>
+                        <div id="slider-comfort" class="slider-container">
+                            <label class="slider-label">Comfort Weight (0 ~ 1):</label>
+                            <input type="range" min="0" max="1" step="0.1" value="0.5" id="comfortRange">
+                            <p>Current Value: <span id="comfortValue">0.5</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="search-button-container">
+                    <button id="calculate-route-btn" disabled>
+                        <span class="search-icon">
+                            <svg class="w-5 h-5 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m21 21-3.5-3.5M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/>
+                            </svg>
+                        </span>
+                        Find Route
+                    </button>
+                </div>
+
+                <!-- route lists -->
+                <h2 class="text-xl font-bold mb-2 mt-6 text-gray-700" style="display: none;" id="route-list-title">Recommended Routes</h2>
+                <div id="route-list" class="p-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="map" class="w-3/4"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // A global variable that stores the value of the slider
+        let distanceCoeff = 0.5;
+        let safetyCoeff = 0.5;
+        let comfortCoeff = 0.5;
+        
+        // load map
+        const map = L.map('map').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // add a scale
+        L.control.scale({imperial: false}).addTo(map);
+
+        // marker variables 
+        let startMarker = null;
+        let endMarker = null;
+
+        // button slider function
+        const sliders = [
+            { buttonId: 'distance-button', sliderId: 'toggle-length-slider' },
+            { buttonId: 'safety-button', sliderId: 'slider-safety' },
+            { buttonId: 'comfort-button', sliderId: 'slider-comfort' }
+        ];
+
+        // the button click event
+        sliders.forEach(({ buttonId, sliderId }) => {
+            const button = document.getElementById(buttonId);
+            const slider = document.getElementById(sliderId);
+
+            button.addEventListener("click", function (e) {
+                e.stopPropagation();
+                // hide any other slider
+                sliders.forEach(({ sliderId: otherId }) => {
+                    if (otherId !== sliderId) {
+                        document.getElementById(otherId).style.display = "none";
+                    }
+                });
+                // show or hide the current slider
+                slider.style.display = (slider.style.display === "block") ? "none" : "block";
+            });
+        });
+
+        // Click on other positions on the page to close all sliders 
+        window.addEventListener("click", function (e) {
+            sliders.forEach(({ buttonId, sliderId }) => {
+                const button = document.getElementById(buttonId);
+                const slider = document.getElementById(sliderId);
+                if (!slider.contains(e.target) && !button.contains(e.target)) {
+                    slider.style.display = "none";
+                }
+            });
+        });
+
+        // slider update function
+        function updateDisplay(sliderId, valueId) {
+            const slider = document.getElementById(sliderId);
+            const valueDisplay = document.getElementById(valueId);
+            valueDisplay.textContent = slider.value;
+            
+            // Update the value display on the button
+            if (sliderId === 'distanceRange') {
+                document.getElementById('distance-value-display').textContent = slider.value;
+                distanceCoeff = parseFloat(slider.value);
+            } else if (sliderId === 'safetyRange') {
+                document.getElementById('safety-value-display').textContent = slider.value;
+                safetyCoeff = parseFloat(slider.value);
+            } else if (sliderId === 'comfortRange') {
+                document.getElementById('comfort-value-display').textContent = slider.value;
+                comfortCoeff = parseFloat(slider.value);
+            }
+        }
+
+        // Reset the slider to the default value
+        function resetSliders() {
+            // Set the slider value to 0.5
+            document.getElementById('distanceRange').value = 0.5;
+            document.getElementById('safetyRange').value = 0.5;
+            document.getElementById('comfortRange').value = 0.5;
+            
+            // update display
+            updateDisplay('distanceRange', 'distanceValue');
+            updateDisplay('safetyRange', 'safetyValue');
+            updateDisplay('comfortRange', 'comfortValue');
+            
+            // update global variables
+            distanceCoeff = 0.5;
+            safetyCoeff = 0.5;
+            comfortCoeff = 0.5;
+        }
+
+        // Initialize the slider display value when the page is loading
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize the slider value display
+            updateDisplay('distanceRange', 'distanceValue');
+            updateDisplay('safetyRange', 'safetyValue');
+            updateDisplay('comfortRange', 'comfortValue');
+            
+            // Initialize global variables
+            distanceCoeff = parseFloat(document.getElementById('distanceRange').value);
+            safetyCoeff = parseFloat(document.getElementById('safetyRange').value);
+            comfortCoeff = parseFloat(document.getElementById('comfortRange').value);
+            
+            // Initialize the button value display
+            document.getElementById('distance-value-display').textContent = distanceCoeff;
+            document.getElementById('safety-value-display').textContent = safetyCoeff;
+            document.getElementById('comfort-value-display').textContent = comfortCoeff;
+            
+            // Add event listeners for the slider
+            document.getElementById('distanceRange').addEventListener('input', () => updateDisplay('distanceRange', 'distanceValue'));
+            document.getElementById('safetyRange').addEventListener('input', () => updateDisplay('safetyRange', 'safetyValue'));
+            document.getElementById('comfortRange').addEventListener('input', () => updateDisplay('comfortRange', 'comfortValue'));
+        });
+
+        // Highlight the keywords entered by users in the site search results
+        function highlightMatch(text, query) {
+            const index = text.toLowerCase().indexOf(query.toLowerCase());
+            if (index === -1) return text;
+
+            return text.substring(0, index) + `<span class="bg-yellow-200">${text.substring(index, index + query.length)}</span>` + text.substring(index + query.length);
+        }
+
+        // Keyboard navigation variable
+        let startSelectedIndex = -1;
+        let startResults = []
+        let endSelectedIndex = -1;
+        let endResults = [];
+
+        function highlightSelected(items, index) {
+            // Remove all highlights
+            items.forEach(item => item.classList.remove('highlighted', 'bg-blue-100', 'border', 'border-blue-500'));
+            // Highlight the currently selected item
+            if (index >= 0 && index < items.length) {
+                items[index].classList.add('highlighted', 'bg-blue-100', 'border', 'border-blue-500');
+                // Make sure the selected item is within the visible area
+                items[index].scrollIntoView({block: "nearest"});
+            }
+        }
+
+        function handleInputKeydown(e, target, isStart) {
+            let items = isStart ? startResults : endResults;
+            let selectedIndex = isStart ? startSelectedIndex : endSelectedIndex;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const newIndex = Math.min(items.length - 1, selectedIndex + 1);
+                
+                if (isStart) {
+                    startSelectedIndex = newIndex
+                } else {
+                    endSelectedIndex = newIndex
+                }
+                highlightSelected(items, newIndex)
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const newIndex = Math.max(-1, selectedIndex - 1);
+                if (isStart) {
+                    startSelectedIndex = newIndex;
+                } else {
+                    endSelectedIndex = newIndex;
+                }
+                highlightSelected(items, newIndex)
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (selectedIndex >= 0 && selectedIndex < items.length) {
+                    items[selectedIndex].click();
+                }
+            }
+        }
+
+        // The implementation of the search function
+        let startPoint = null, endPoint = null;
+        let startStationName = "", endStationName = "";
+        let routes = [], metrics = [], routePolylines = [];
+        let activeRequest = null; // used to record the current request controller
+
+        const startSearchInput = document.getElementById('start-search');
+        const endSearchInput = document.getElementById('end-search');
+        const startSearchResults = document.getElementById('start-search-results');
+        const endSearchResults = document.getElementById('end-search-results');
+
+        // Add keyboard event listeners to the input box
+        startSearchInput.addEventListener('keydown', (e) => {
+            handleInputKeydown(e, startSearchResults, true);
+        });
+
+        endSearchInput.addEventListener('keydown', (e) => {
+            handleInputKeydown(e, endSearchResults, false);
+        });
+
+        // Search button event listener
+        document.getElementById('calculate-route-btn').addEventListener('click', function() {
+            if (startPoint && endPoint) {
+                calculateRoute();
+                
+                // display route list
+                document.getElementById('route-list-title').style.display = 'block';
+                document.getElementById('route-list').style.display = 'block';
+            } else {
+                alert('Please select both start and end stations.');
+            }
+        });
+
+        function fetchStations(query, target, setPoint, setName, inputElement) {
+            // If the input is an empty string or only Spaces, clear the result and terminate the request
+            query = query.trim();
+
+            if (query.length < 2) {
+                target.innerHTML = ''; // empty the results
+                return;                 // not sending request
+            }
+
+            target.innerHTML = '<div class="loading">Loading stations...</div>' 
+
+            // Terminate previously unfinished requests (if any) to prevent result overwriting and request conflicts
+            if (activeRequest) activeRequest.abort()
+
+            // Create a new request controller
+            const controller = new AbortController()
+            activeRequest = controller;
+
+            // Send a GET request to the Flask backend
+            fetch(`http://127.0.0.1:5000/search?query=${query}`, {
+                signal: controller.signal
+              })
+                .then(res => res.json())
+                .then(data => {
+                    target.innerHTML = '';
+
+                    // reset the search result array
+                    const results = [];
+                    const isStart = (target === startSearchResults)
+
+                    // reset the index
+                    if (isStart) {
+                        startResults = results;
+                        startSelectedIndex = -1;
+                    } else {
+                        endResults = results;
+                        endSelectedIndex = -1;
+                    }
+
+                    data.forEach(station => { // iterate the returned site data 
+                        const div = document.createElement('div');
+                        div.className = 'search-result-item';
+                        div.innerHTML = `
+                            <div class="font-medium">${highlightMatch(station.name, query)}</div>
+                            <div class="text-xs text-gray-500 mt-1">Available bikes: ${station.bikes ?? 0}</div>
+                        `;
+
+                        div.onclick = () => {
+                            // clear all marker 
+                            if (isStart && startMarker) map.removeLayer(startMarker);
+                            if (!isStart && endMarker) map.removeLayer(endMarker);
+
+                            // create marker on the map
+                            const marker = L.marker([station.lat, station.lon]).addTo(map)
+                                .bindPopup(`<b>${station.name}</b><br>Bikes available: ${station.bikes || 0}`)
+                                .openPopup();
+                                
+                            if (isStart) {
+                                startMarker = marker;
+                            } else {
+                                endMarker = marker;
+                            }
+
+                            setPoint({ lat: station.lat, lon: station.lon }); // set the start/end coordinate
+                            setName(station.name); // set station name
+                            target.innerHTML = ''; // clear result
+                            inputElement.value = station.name;
+
+                            const calculateBtn = document.getElementById('calculate-route-btn');
+                            if (startPoint && endPoint) {
+                                calculateBtn.disabled = false;
+                            } else {
+                                calculateBtn.disabled = true;
+                            }
+                        };
+
+                        target.appendChild(div); // add the result item to the DOM
+                        results.push(div); // add to the result array
+                    });
+
+                    // stored results are used for keyboard navigation
+                    if (isStart) {
+                        startResults = results;
+                    } else {
+                        endResults = results;
+                    }
+                })
+                .catch(err => {
+                  target.innerHTML = '<div class="error">Failed to load stations. Please try again.</div>';
+                  console.error("Search error:", err);
+                });
+        }
+
+        // debounce
+        function createDebouncedFetch(delay) {
+            let timer;
+            return function(...args) {
+              clearTimeout(timer);
+              timer =  setTimeout(() => {
+                  fetchStations(...args);
+              }, delay);
+            };
+        }
+
+        const debouncedFetchStart = createDebouncedFetch(300);
+        const debouncedFetchEnd = createDebouncedFetch(300);
+
+        startSearchInput.addEventListener('input', () => {
+            debouncedFetchStart(
+              startSearchInput.value, 
+              startSearchResults, 
+              p => startPoint = p, 
+              n => startStationName = n,
+              startSearchInput
+            );
+        });
+
+        endSearchInput.addEventListener('input', () => {
+            debouncedFetchEnd(
+              endSearchInput.value, 
+              endSearchResults, 
+              p => endPoint = p, 
+              n => endStationName = n,
+              endSearchInput
+            );
+        });
+
+        // Clear all input and marking functions
+        function clearAllInputs() {
+            console.log("Clearing all inputs..."); 
+            
+            startSearchInput.value = '';
+            endSearchInput.value = '';
+            
+            startSearchResults.innerHTML = '';
+            endSearchResults.innerHTML = '';
+            
+            clearAllMarkers();
+            
+            // clear route
+            routePolylines.forEach(p => {
+                console.log("Removing polyline", p);
+                map.removeLayer(p);
+            });
+            routePolylines = [];
+            
+            // clear route list
+            document.getElementById('route-list').innerHTML = '';
+            
+            // rest variables
+            startPoint = null;
+            endPoint = null;
+            startStationName = "";
+            endStationName = "";
+            routes = [];
+            metrics = [];
+            
+            // hide route list 
+            document.getElementById('route-list-title').style.display = 'none';
+            document.getElementById('route-list').style.display = 'none';
+            
+            // disable the search button
+            document.getElementById('calculate-route-btn').disabled = true;
+            
+            resetSliders();            
+            console.log("All inputs cleared");
+        }
+
+        function clearAllMarkers() {
+            console.log("Clearing all markers");
+            
+            // clear start and end point marker
+            if (startMarker) {
+                console.log("Removing start marker", startMarker);
+                map.removeLayer(startMarker);
+                startMarker = null;
+            }
+            
+            if (endMarker) {
+                console.log("Removing end marker", endMarker);
+                map.removeLayer(endMarker);
+                endMarker = null;
+            }
+            
+            // make sure on other marker on the map
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker) {
+                    console.log("Removing additional marker", layer);
+                    map.removeLayer(layer);
+                }
+            });
+        }
+
+        // cancel button event listener
+        document.getElementById('cancel-button').addEventListener('click', clearAllInputs);
+
+        
+        function calculateRoute() {
+            if (!startPoint || !endPoint) {
+                alert('Start or end point not selected');
+                return;
+            }
+            
+            // show the loading status
+            const routeList = document.getElementById('route-list');
+            routeList.innerHTML = '<div class="loading">Calculating routes...</div>';
+            
+            const url = `http://127.0.0.1:5000/route?start=${encodeURIComponent(startStationName)}&end=${encodeURIComponent(endStationName)}&distance=${distanceCoeff}&safety=${safetyCoeff}&comfort=${comfortCoeff}`;
+            
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                     if (data.error) {
+                        console.error("backend error：", data.error);
+                        routeList.innerHTML = `<div class="error">${data.error}</div>`;
+                        return;
+                    }
+
+                    if (!data.routes || !data.metrics) {
+                        console.error("return data format is not correct", data);
+                        routeList.innerHTML = '<div class="error">No valid routes returned</div>';
+                        return;
+                    }
+
+                    routes = data.routes;
+                    metrics = data.metrics;
+                    updateRouteList();
+                })
+                .catch(err => {
+                    routeList.innerHTML = '<div class="error">Failed to calculate routes. Please try again.</div>';
+                    console.error("Route error:", err);
+                });
+        }
+
+        function updateRouteList() {
+            const container = document.getElementById('route-list');
+            container.innerHTML = '';
+            routePolylines.forEach(p => map.removeLayer(p));
+            routePolylines = [];
+            
+            if (routes.length === 0) {
+                container.innerHTML = '<div class="error">No routes found. Please try different stations or settings.</div>';
+                return;
+            }
+            
+            // Add the best route tips
+            if (routes.length > 1) {
+                const bestRouteInfo = document.createElement('div');
+                bestRouteInfo.className = 'bg-blue-50 p-3 rounded-lg mb-4 text-sm text-blue-800';
+                bestRouteInfo.innerHTML = `
+                    <div class="font-bold">🏆 Best Route Selected</div>
+                    <div class="mt-1">Based on your preferences (distance: ${distanceCoeff}, safety: ${safetyCoeff}, comfort: ${comfortCoeff})</div>
+                `;
+                container.appendChild(bestRouteInfo);
+            }
+            
+            routes.forEach((route, i) => {
+                const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#f59e0b']; // different route color
+                const color = colors[i % colors.length];
+                
+                const polyline = L.polyline(route.map(p => [p.lat, p.lon]), {
+                    color: color,
+                    weight: 6,
+                    opacity: 0.8
+                }).addTo(map);
+                
+                routePolylines.push(polyline);
+                
+                // add start and end point marker 
+                if (i === 0) {
+                    L.marker([route[0].lat, route[0].lon]).addTo(map)
+                        .bindPopup(`<b>Start:</b> ${startStationName}`)
+                        .openPopup();
+                        
+                    L.marker([route[route.length-1].lat, route[route.length-1].lon]).addTo(map)
+                        .bindPopup(`<b>End:</b> ${endStationName}`)
+                        .openPopup();
+                }
+                
+                // Create a route information card
+                const div = document.createElement('div');
+                div.className = 'route-list-item';
+                div.innerHTML = `
+                    <div class="route-header">
+                        <strong>Route ${i + 1}</strong>
+                        <span class="text-sm font-medium px-2 py-1 rounded-full" style="background: ${color + '20'}; color: ${color};">${i === 0 ? 'Recommended' : 'Alternative'}</span>
+                    </div>
+                    <div class="route-metrics">
+                        <div class="metric-item">
+                            <div>Distance</div>
+                            <div class="metric-value">${metrics[i].route_length?.toFixed(1) || 'N/A'} m</div>
+                        </div>
+                        <div class="metric-item">
+                            <div>Safety</div>
+                            <div class="metric-value">${metrics[i].safety_score?.toFixed(2) || 'N/A'}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div>Comfort</div>
+                            <div class="metric-value">${metrics[i].comfort_score?.toFixed(2) || 'N/A'}</div>
+                        </div>
+                    </div>
+                `;
+                
+                // highlight the route when clicking on the route card
+                div.addEventListener('click', () => {
+                    routePolylines.forEach(p => {
+                        p.setStyle({opacity: 0.3, weight: 4});
+                    });
+                    polyline.setStyle({opacity: 1, weight: 8});
+                    map.fitBounds(polyline.getBounds());
+                });
+                
+                container.appendChild(div);
+            });
+            
+            // automatically adjust the map view to display all routes
+            if (routePolylines.length > 0) {
+                const group = new L.featureGroup(routePolylines);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+
+        document.getElementById('distance-button').onclick = () => {
+            if (routes.length === 0) return;
+            
+            const combined = routes.map((r, i) => ({r, m: metrics[i]}));
+            combined.sort((a, b) => a.m.route_length - b.m.route_length);
+            routes = combined.map(o => o.r);
+            metrics = combined.map(o => o.m);
+            updateRouteList();
+        };
+
+        document.getElementById('safety-button').onclick = () => {
+            if (routes.length === 0) return;
+            
+            const combined = routes.map((r, i) => ({r, m: metrics[i]}));
+            combined.sort((a, b) => b.m.safety_score - a.m.safety_score);
+            routes = combined.map(o => o.r);
+            metrics = combined.map(o => o.m);
+            updateRouteList();
+        };
+
+        document.getElementById('comfort-button').onclick = () => {
+            if (routes.length === 0) return;
+            
+            const combined = routes.map((r, i) => ({r, m: metrics[i]}));
+            combined.sort((a, b) => b.m.comfort_score - a.m.comfort_score);
+            routes = combined.map(o => o.r);
+            metrics = combined.map(o => o.m);
+            updateRouteList();
+        };
+    </script>
+</body>
+</html>

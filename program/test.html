@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>text</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://unpkg.com/tailwindcss@^2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        
+        @media (min-width: 768px) {
+            body {
+                flex-direction: row;
+            }
+        }
+        
+        #side-panel {
+            background-color: #f3f4f6;
+            padding: 1rem;
+            overflow-y: auto;
+            max-height: 50vh; /* 移动设备上最大高度 */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        
+        @media (min-width: 768px) {
+            #side-panel {
+                width: 30%;
+                max-width: 400px;
+                max-height: none;
+                height: 100%;
+            }
+        }
+        
+        #map-container {
+            flex-grow: 1;
+            position: relative;
+            min-height: 50vh; /* 确保地图有最小高度 */
+        }
+        
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        @media (min-width: 768px) {
+            #map-container {
+                min-height: 0; /* 移除桌面模式的最小高度限制 */
+                height: 100%; /* 添加这行确保高度100%填充 */
+            }
+        }
+
+        .search-results { 
+            background-color: white; 
+            border: 1px solid #e2e8f0; 
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .search-result-item { 
+            padding: 0.5rem 1rem; 
+            cursor: pointer; 
+            background-color: #f0fdf4;
+            border-bottom: 1px solid #e2e8f0;
+            transition: background-color 0.2s;
+        }
+
+        .search-result-item:hover {
+            background-color: #d1fae5;
+        }
+
+        .sort-buttons button { 
+            margin-right: 5px; 
+            min-width: 100px;
+            padding: 8px 12px;
+            font-weight: bold;
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .dropbtn {
+            border: none;
+            cursor: pointer;
+        }
+
+        .slider-container {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: white;
+            padding: 16px;
+            min-width: 220px;
+            box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .slider-label {
+            margin-bottom: 8px;
+            display: block;
+            font-weight: bold;
+            white-space: nowrap;
+            color: #334155;
+        }
+
+        input[type=range] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #e2e8f0;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+
+        .loading {
+          padding: 0.5rem;
+          color: gray;
+          font-style: italic;
+        }
+
+       .error {
+        padding: 0.5rem;
+        color: red; 
+        font-weight: bold;
+       }
+
+       .search-result-item.highlighted {
+          background-color: #dbeafe;
+          border: 2px solid #3b92f6 
+       }
+
+       .bg-blue-100 {
+          background-color: #dbeafe;
+       }
+
+       .border-blue-500 {
+          border-color: #3b92f6;
+       }
+
+       #cancel-button {
+          position: absolute;
+          top: 70px;
+          right: 10px;
+          cursor: pointer;
+          z-index: 10;
+          padding: 4px;
+          border-radius: 4px;
+          transition: background-color 0.2s;
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+       }
+
+       #cancel-button:hover {
+          background-color: #dbeafe;
+       }
+
+       #cancel-button svg {
+          display: block;
+          width: 24px;
+          height: 24px;
+       }
+
+       #search-button-container {
+            display: flex;
+            justify-content: flex-end;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        
+        #calculate-route-btn {
+            background-color: #3b82f6;
+            color: white;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+        }
+        
+        #calculate-route-btn:hover {
+            background-color: #2563eb;
+            transform: translateY(-2px);
+        }
+        
+        #calculate-route-btn:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .search-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .route-list-item {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .route-list-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .route-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .route-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .metric-item {
+            background: #f8fafc;
+            padding: 0.5rem;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        
+        .metric-value {
+            font-weight: bold;
+            color: #3b82f6;
+            font-size: 1.1rem;
+        }
+        
+        .slider-value-display {
+            font-weight: bold;
+            background: #dbeafe;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+        }
+        
+        .panel-header {
+            background: linear-gradient(to right, #3b82f6, #60a5fa);
+            color: white;
+            padding: 1rem;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            margin: -1rem -1rem 1rem -1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .input-container {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        
+        .input-container label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #334155;
+        }
+        
+        .input-container input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .input-container input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        
+        .buttons-container {
+            display: flex;
+            flex-direction: column; /* 改为垂直排列 */
+            gap: 12px; /* 增加垂直间距 */
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .buttons-container > div {
+            width: 100%; /* 按钮容器宽度100% */
+        }
+        
+        .buttons-container button {
+            width: 100%; /* 按钮宽度100% */
+            margin-right: 0; /* 移除水平间距 */
+        }
+        
+        .slider-container {
+            min-width: 100%; /* 滑块面板宽度与按钮相同 */
+            box-sizing: border-box; /* 包含内边距 */
+        }
+        
+        #route-list {
+            max-height: calc(100vh - 400px);
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+        
+        #route-list-title {
+            margin-top: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        /* 添加重置按钮样式 */
+        .reset-indicator {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: #ef4444;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+
+<body class="flex bg-gray-50">
+    <div id="side-panel" class="w-1/4 bg-gray-100 p-4 relative">
+        <div class="bg-white rounded-lg shadow-lg h-full relative overflow-hidden">
+            <div class="panel-header">
+                <h2 class="text-xl font-bold">Bike Route Planner</h2>
+                <p class="text-sm opacity-90">Find the best cycling routes in your city</p>
+            </div>
+
+            <div id="cancel-button" title="Reset all inputs">
+                <svg class="w-6 h-6 text-gray-600 hover:text-gray-800" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 17.94 6M18 18 6.06 6"/>
+                </svg>
+            </div>
+
+            <div class="p-4">
+                <!-- starting point input bar -->
+                <div class="input-container">
+                    <label>From:</label>
+                    <input type="text" id="start-search" placeholder="Enter starting station" class="w-full">
+                    <div id="start-search-results" class="search-results"></div>
+                </div>
+
+                <!-- end-point input bar -->
+                <div class="input-container">
+                    <label>To:</label>
+                    <input type="text" id="end-search" placeholder="Enter destination station" class="w-full">
+                    <div id="end-search-results" class="search-results"></div>
+                </div>
+
+                <!-- bikeability index buttons -->
+                <div class="buttons-container">
+                    <!-- length button -->
+                    <div style="position: relative;">
+                        <button id="distance-button" class="bg-blue-500 hover:bg-blue-400 text-white">
+                            <span>Distance</span>
+                            <span id="distance-value-display" class="slider-value-display">0.5</span>
+                        </button>
+                        <div id="toggle-length-slider" class="slider-container">
+                            <label class="slider-label">Distance Weight (0 ~ 1):</label>
+                            <input type="range" min="0" max="1" step="0.1" value="0.5" id="distanceRange">
+                            <p>Current Value: <span id="distanceValue">0.5</span></p>
+                        </div>
+                    </div>
+                    
+                    <!-- safety button -->
+                    <div style="position: relative;">
+                        <button id="safety-button" class="bg-green-500 hover:bg-green-400 text-white">
+                            <span>Safety</span>
+                            <span id="safety-value-display" class="slider-value-display">0.5</span>
+                        </button>
+                        <div id="slider-safety" class="slider-container">
+                            <label class="slider-label">Safety Weight (0 ~ 1):</label>
+                            <input type="range" min="0" max="1" step="0.1" value="0.5" id="safetyRange">
+                            <p>Current Value: <span id="safetyValue">0.5</span></p>
+                        </div>
+                    </div>
+
+                    <!-- comfort button -->
+                    <div style="position: relative;">
+                        <button id="comfort-button" class="bg-purple-500 hover:bg-purple-400 text-white">
+                            <span>Comfort</span>
+                            <span id="comfort-value-display" class="slider-value-display">0.5</span>
+                        </button>
+                        <div id="slider-comfort" class="slider-container">
+                            <label class="slider-label">Comfort Weight (0 ~ 1):</label>
+                            <input type="range" min="0" max="1" step="0.1" value="0.5" id="comfortRange">
+                            <p>Current Value: <span id="comfortValue">0.5</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="search-button-container">
+                    <button id="calculate-route-btn" disabled>
+                        <span class="search-icon">
+                            <svg class="w-5 h-5 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m21 21-3.5-3.5M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/>
+                            </svg>
+                        </span>
+                        Find Route
+                    </button>
+                </div>
+
+                <!-- route lists -->
+                <h2 class="text-xl font-bold mb-2 mt-6 text-gray-700" style="display: none;" id="route-list-title">Recommended Routes</h2>
+                <div id="route-list" class="p-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 存储滑块值的全局变量
+        let distanceCoeff = 0.5;
+        let safetyCoeff = 0.5;
+        let comfortCoeff = 0.5;
+        
+        // load map
+        const map = L.map('map').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        setTimeout(() => map.invalidateSize(), 100);  // 确保地图正确调整大小
+        window.addEventListener('resize', () => { 
+            map.invalidateSize();
+        });
+
+        // 添加比例尺
+        L.control.scale({imperial: false}).addTo(map);
+
+        // 标记变量
+        let startMarker = null;
+        let endMarker = null;
+
+        // button slider function
+        const sliders = [
+            { buttonId: 'distance-button', sliderId: 'toggle-length-slider' },
+            { buttonId: 'safety-button', sliderId: 'slider-safety' },
+            { buttonId: 'comfort-button', sliderId: 'slider-comfort' }
+        ];
+
+        // 绑定按钮点击事件
+        sliders.forEach(({ buttonId, sliderId }) => {
+            const button = document.getElementById(buttonId);
+            const slider = document.getElementById(sliderId);
+
+            button.addEventListener("click", function (e) {
+                e.stopPropagation();
+                // 隐藏其它 slider
+                sliders.forEach(({ sliderId: otherId }) => {
+                    if (otherId !== sliderId) {
+                        document.getElementById(otherId).style.display = "none";
+                    }
+                });
+                // 显示或隐藏当前 slider
+                slider.style.display = (slider.style.display === "block") ? "none" : "block";
+            });
+        });
+
+        // 点击页面其他位置关闭所有 slider
+        window.addEventListener("click", function (e) {
+            sliders.forEach(({ buttonId, sliderId }) => {
+                const button = document.getElementById(buttonId);
+                const slider = document.getElementById(sliderId);
+                if (!slider.contains(e.target) && !button.contains(e.target)) {
+                    slider.style.display = "none";
+                }
+            });
+        });
+
+        // 滑块更新函数
+        function updateDisplay(sliderId, valueId) {
+            const slider = document.getElementById(sliderId);
+            const valueDisplay = document.getElementById(valueId);
+            valueDisplay.textContent = slider.value;
+            
+            // 更新按钮上的值显示
+            if (sliderId === 'distanceRange') {
+                document.getElementById('distance-value-display').textContent = slider.value;
+                distanceCoeff = parseFloat(slider.value);
+            } else if (sliderId === 'safetyRange') {
+                document.getElementById('safety-value-display').textContent = slider.value;
+                safetyCoeff = parseFloat(slider.value);
+            } else if (sliderId === 'comfortRange') {
+                document.getElementById('comfort-value-display').textContent = slider.value;
+                comfortCoeff = parseFloat(slider.value);
+            }
+        }
+
+        // 重置滑块到默认值
+        function resetSliders() {
+            // 设置滑块值为0.5
+            document.getElementById('distanceRange').value = 0.5;
+            document.getElementById('safetyRange').value = 0.5;
+            document.getElementById('comfortRange').value = 0.5;
+            
+            // 更新显示
+            updateDisplay('distanceRange', 'distanceValue');
+            updateDisplay('safetyRange', 'safetyValue');
+            updateDisplay('comfortRange', 'comfortValue');
+            
+            // 更新全局变量
+            distanceCoeff = 0.5;
+            safetyCoeff = 0.5;
+            comfortCoeff = 0.5;
+        }
+
+        // 在页面加载时初始化滑块显示值
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化滑块值显示
+            updateDisplay('distanceRange', 'distanceValue');
+            updateDisplay('safetyRange', 'safetyValue');
+            updateDisplay('comfortRange', 'comfortValue');
+            
+            // 初始化全局变量
+            distanceCoeff = parseFloat(document.getElementById('distanceRange').value);
+            safetyCoeff = parseFloat(document.getElementById('safetyRange').value);
+            comfortCoeff = parseFloat(document.getElementById('comfortRange').value);
+            
+            // 初始化按钮值显示
+            document.getElementById('distance-value-display').textContent = distanceCoeff;
+            document.getElementById('safety-value-display').textContent = safetyCoeff;
+            document.getElementById('comfort-value-display').textContent = comfortCoeff;
+            
+            // 为滑块添加事件监听
+            document.getElementById('distanceRange').addEventListener('input', () => updateDisplay('distanceRange', 'distanceValue'));
+            document.getElementById('safetyRange').addEventListener('input', () => updateDisplay('safetyRange', 'safetyValue'));
+            document.getElementById('comfortRange').addEventListener('input', () => updateDisplay('comfortRange', 'comfortValue'));
+        });
+
+        // 在站点搜索结果中高亮显示用户输入的关键词
+        function highlightMatch(text, query) {
+            const index = text.toLowerCase().indexOf(query.toLowerCase());
+            if (index === -1) return text;
+
+            return text.substring(0, index) + `<span class="bg-yellow-200">${text.substring(index, index + query.length)}</span>` + text.substring(index + query.length);
+        }
+
+        // 键盘导航变量
+        let startSelectedIndex = -1;
+        let startResults = []
+        let endSelectedIndex = -1;
+        let endResults = [];
+
+        function highlightSelected(items, index) {
+            // 移除所有高亮
+            items.forEach(item => item.classList.remove('highlighted', 'bg-blue-100', 'border', 'border-blue-500'));
+            // 高亮当前选中项
+            if (index >= 0 && index < items.length) {
+                items[index].classList.add('highlighted', 'bg-blue-100', 'border', 'border-blue-500');
+                // 确保选中项在可视区域内
+                items[index].scrollIntoView({block: "nearest"});
+            }
+        }
+
+        function handleInputKeydown(e, target, isStart) {
+            let items = isStart ? startResults : endResults;
+            let selectedIndex = isStart ? startSelectedIndex : endSelectedIndex;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const newIndex = Math.min(items.length - 1, selectedIndex + 1);
+                
+                if (isStart) {
+                    startSelectedIndex = newIndex
+                } else {
+                    endSelectedIndex = newIndex
+                }
+                highlightSelected(items, newIndex)
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const newIndex = Math.max(-1, selectedIndex - 1);
+                if (isStart) {
+                    startSelectedIndex = newIndex;
+                } else {
+                    endSelectedIndex = newIndex;
+                }
+                highlightSelected(items, newIndex)
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (selectedIndex >= 0 && selectedIndex < items.length) {
+                    items[selectedIndex].click();
+                }
+            }
+        }
+
+        // 搜索功能的实现
+        let startPoint = null, endPoint = null;
+        let startStationName = "", endStationName = "";
+        let routes = [], metrics = [], routePolylines = [];
+        let activeRequest = null; // 用于记录当前的请求控制器
+
+        const startSearchInput = document.getElementById('start-search');
+        const endSearchInput = document.getElementById('end-search');
+        const startSearchResults = document.getElementById('start-search-results');
+        const endSearchResults = document.getElementById('end-search-results');
+
+        // 为输入框添加键盘事件监听
+        startSearchInput.addEventListener('keydown', (e) => {
+            handleInputKeydown(e, startSearchResults, true);
+        });
+
+        endSearchInput.addEventListener('keydown', (e) => {
+            handleInputKeydown(e, endSearchResults, false);
+        });
+
+        // 搜索按钮事件监听
+        document.getElementById('calculate-route-btn').addEventListener('click', function() {
+            if (startPoint && endPoint) {
+                calculateRoute();
+                
+                // 显示路线列表
+                document.getElementById('route-list-title').style.display = 'block';
+                document.getElementById('route-list').style.display = 'block';
+            } else {
+                alert('Please select both start and end stations.');
+            }
+        });
+
+        function fetchStations(query, target, setPoint, setName, inputElement) {
+            // 若输入为空字符串或仅有空格，则清空结果并终止请求
+            query = query.trim();
+
+            if (query.length < 2) {
+                target.innerHTML = ''; // 清空结果容器
+                return;                 // 不发送请求
+            }
+
+            target.innerHTML = '<div class="loading">Loading stations...</div>' // 加载提示
+
+            // 中止之前未完成的请求（若存在），防止结果覆盖和请求冲突
+            if (activeRequest) activeRequest.abort()
+
+            // 创建新的请求控制器
+            const controller = new AbortController()
+            activeRequest = controller;
+
+            // 发送 GET 请求到 Flask 后端
+            fetch(`http://127.0.0.1:5000/search?query=${query}`, {
+                signal: controller.signal
+              })
+                .then(res => res.json())
+                .then(data => {
+                    target.innerHTML = '';
+
+                    // 重置搜索结果数组
+                    const results = [];
+                    const isStart = (target === startSearchResults)
+
+                    // 重置索引
+                    if (isStart) {
+                        startResults = results;
+                        startSelectedIndex = -1;
+                    } else {
+                        endResults = results;
+                        endSelectedIndex = -1;
+                    }
+
+                    data.forEach(station => { // 遍历返回的站点数据
+                        const div = document.createElement('div');
+                        div.className = 'search-result-item';
+                        div.innerHTML = `
+                            <div class="font-medium">${highlightMatch(station.name, query)}</div>
+                            <div class="text-xs text-gray-500 mt-1">Available bikes: ${station.bikes || 0}</div>
+                        `;
+
+                        div.onclick = () => {
+                            // 清除之前的标记
+                            if (isStart && startMarker) map.removeLayer(startMarker);
+                            if (!isStart && endMarker) map.removeLayer(endMarker);
+
+                            // 在地图上创建标记
+                            const marker = L.marker([station.lat, station.lon]).addTo(map)
+                                .bindPopup(`<b>${station.name}</b><br>Bikes available: ${station.bikes || 0}`)
+                                .openPopup();
+                                
+                            if (isStart) {
+                                startMarker = marker;
+                            } else {
+                                endMarker = marker;
+                            }
+
+                            setPoint({ lat: station.lat, lon: station.lon }); // 设置起点/终点坐标
+                            setName(station.name); // 设置站点名称
+                            target.innerHTML = ''; // 清空结果容器
+                            inputElement.value = station.name;
+
+                            const calculateBtn = document.getElementById('calculate-route-btn');
+                            if (startPoint && endPoint) {
+                                calculateBtn.disabled = false;
+                            } else {
+                                calculateBtn.disabled = true;
+                            }
+                        };
+
+                        target.appendChild(div); // 将结果项添加到 DOM 中
+                        results.push(div); // 添加到结果数组
+                    });
+
+                    // 存储结果用于键盘导航
+                    if (isStart) {
+                        startResults = results;
+                    } else {
+                        endResults = results;
+                    }
+                })
+                .catch(err => {
+                  target.innerHTML = '<div class="error">Failed to load stations. Please try again.</div>';
+                  console.error("Search error:", err);
+                });
+        }
+
+        // 添加防抖(debounce) - 避免用户频繁输入时触发大量请求，降低前端压力和后端负担，提高性能和响应体验
+        function createDebouncedFetch(delay) {
+            let timer;
+            return function(...args) {
+              clearTimeout(timer);
+              timer =  setTimeout(() => {
+                  fetchStations(...args);
+              }, delay);
+            };
+        }
+
+        const debouncedFetchStart = createDebouncedFetch(300);
+        const debouncedFetchEnd = createDebouncedFetch(300);
+
+        startSearchInput.addEventListener('input', () => {
+            debouncedFetchStart(
+              startSearchInput.value, 
+              startSearchResults, 
+              p => startPoint = p, 
+              n => startStationName = n,
+              startSearchInput
+            );
+        });
+
+        endSearchInput.addEventListener('input', () => {
+            debouncedFetchEnd(
+              endSearchInput.value, 
+              endSearchResults, 
+              p => endPoint = p, 
+              n => endStationName = n,
+              endSearchInput
+            );
+        });
+
+        // 清除所有输入和标记功能
+        function clearAllInputs() {
+            console.log("Clearing all inputs..."); // 添加日志以便调试
+            
+            // 清除输入框内容
+            startSearchInput.value = '';
+            endSearchInput.value = '';
+            
+            // 清除搜索结果
+            startSearchResults.innerHTML = '';
+            endSearchResults.innerHTML = '';
+            
+            // 清除地图上的所有标记
+            clearAllMarkers();
+            
+            // 清除路线
+            routePolylines.forEach(p => {
+                console.log("Removing polyline", p);
+                map.removeLayer(p);
+            });
+            routePolylines = [];
+            
+            // 清除路线列表
+            document.getElementById('route-list').innerHTML = '';
+            
+            // 重置变量
+            startPoint = null;
+            endPoint = null;
+            startStationName = "";
+            endStationName = "";
+            routes = [];
+            metrics = [];
+            
+            // 隐藏路线列表
+            document.getElementById('route-list-title').style.display = 'none';
+            document.getElementById('route-list').style.display = 'none';
+            
+            // 禁用搜索按钮
+            document.getElementById('calculate-route-btn').disabled = true;
+            
+            // 重置滑块到默认值
+            resetSliders();
+            
+            console.log("All inputs cleared");
+        }
+
+        // 新增函数：清除所有标记
+        function clearAllMarkers() {
+            console.log("Clearing all markers");
+            
+            // 清除起点标记
+            if (startMarker) {
+                console.log("Removing start marker", startMarker);
+                map.removeLayer(startMarker);
+                startMarker = null;
+            }
+            
+            // 清除终点标记
+            if (endMarker) {
+                console.log("Removing end marker", endMarker);
+                map.removeLayer(endMarker);
+                endMarker = null;
+            }
+            
+            // 额外清除：确保地图上没有其他标记
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker) {
+                    console.log("Removing additional marker", layer);
+                    map.removeLayer(layer);
+                }
+            });
+            setTimeout(() => map.invalidateSize(), 100);
+        }
+
+        // 添加清除按钮事件监听器
+        document.getElementById('cancel-button').addEventListener('click', clearAllInputs);
+
+        // 路线函数调用
+        function calculateRoute() {
+            // 确保使用正确的坐标格式
+            if (!startPoint || !endPoint) {
+                alert('Start or end point not selected');
+                return;
+            }
+            
+            // 显示加载状态
+            const routeList = document.getElementById('route-list');
+            routeList.innerHTML = '<div class="loading">Calculating routes...</div>';
+            
+            // 使用全局变量中的滑块值
+            const url = `http://127.0.0.1:5000/route?start=${encodeURIComponent(startStationName)}&end=${encodeURIComponent(endStationName)}&distance=${distanceCoeff}&safety=${safetyCoeff}&comfort=${comfortCoeff}`;
+            
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error("后端错误：", data.error);
+                        routeList.innerHTML = `<div class="error">${data.error}</div>`;
+                        return;
+                    }
+
+                    if (!data.routes || !data.metrics) {
+                        console.error("返回数据格式不正确", data);
+                        routeList.innerHTML = '<div class="error">No valid routes returned</div>';
+                        return;
+                    }
+
+                    routes = data.routes;
+                    metrics = data.metrics;
+                    updateRouteList();
+
+                    setTimeout(() => map.invalidateSize(), 100)
+                })
+                .catch(err => {
+                    routeList.innerHTML = '<div class="error">Failed to calculate routes. Please try again.</div>';
+                    console.error("Route error:", err);
+                });
+        }
+
+        function updateRouteList() {
+            const container = document.getElementById('route-list');
+            container.innerHTML = '';
+            routePolylines.forEach(p => map.removeLayer(p));
+            routePolylines = [];
+            
+            if (routes.length === 0) {
+                container.innerHTML = '<div class="error">No routes found. Please try different stations or settings.</div>';
+                return;
+            }
+            
+            // 添加最佳路线提示
+            if (routes.length > 1) {
+                const bestRouteInfo = document.createElement('div');
+                bestRouteInfo.className = 'bg-blue-50 p-3 rounded-lg mb-4 text-sm text-blue-800';
+                bestRouteInfo.innerHTML = `
+                    <div class="font-bold">🏆 Best Route Selected</div>
+                    <div class="mt-1">Based on your preferences (distance: ${distanceCoeff}, safety: ${safetyCoeff}, comfort: ${comfortCoeff})</div>
+                `;
+                container.appendChild(bestRouteInfo);
+            }
+            
+            routes.forEach((route, i) => {
+                // 为路线设置不同颜色
+                const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#f59e0b'];
+                const color = colors[i % colors.length];
+                
+                // 绘制路线
+                const polyline = L.polyline(route.map(p => [p.lat, p.lon]), {
+                    color: color,
+                    weight: 6,
+                    opacity: 0.8
+                }).addTo(map);
+                
+                routePolylines.push(polyline);
+                
+                // 添加起点和终点标记
+                if (i === 0) {
+                    L.marker([route[0].lat, route[0].lon]).addTo(map)
+                        .bindPopup(`<b>Start:</b> ${startStationName}`)
+                        .openPopup();
+                        
+                    L.marker([route[route.length-1].lat, route[route.length-1].lon]).addTo(map)
+                        .bindPopup(`<b>End:</b> ${endStationName}`)
+                        .openPopup();
+                }
+                
+                // 创建路线信息卡片
+                const div = document.createElement('div');
+                div.className = 'route-list-item';
+                div.innerHTML = `
+                    <div class="route-header">
+                        <strong>Route ${i + 1}</strong>
+                        <span class="text-sm font-medium px-2 py-1 rounded-full" style="background: ${color + '20'}; color: ${color};">${i === 0 ? 'Recommended' : 'Alternative'}</span>
+                    </div>
+                    <div class="route-metrics">
+                        <div class="metric-item">
+                            <div>Distance</div>
+                            <div class="metric-value">${metrics[i].route_length?.toFixed(1) || 'N/A'} m</div>
+                        </div>
+                        <div class="metric-item">
+                            <div>Safety</div>
+                            <div class="metric-value">${metrics[i].safety_score?.toFixed(2) || 'N/A'}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div>Comfort</div>
+                            <div class="metric-value">${metrics[i].comfort_score?.toFixed(2) || 'N/A'}</div>
+                        </div>
+                    </div>
+                `;
+                
+                // 点击路线卡片时高亮路线
+                div.addEventListener('click', () => {
+                    routePolylines.forEach(p => {
+                        p.setStyle({opacity: 0.3, weight: 4});
+                    });
+                    polyline.setStyle({opacity: 1, weight: 8});
+                    map.fitBounds(polyline.getBounds());
+                });
+                
+                container.appendChild(div);
+            });
+            
+            // 自动调整地图视图以显示所有路线
+            if (routePolylines.length > 0) {
+                const group = new L.featureGroup(routePolylines);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+            setTimeout(() => map.invalidateSize(), 100);
+        }
+
+        // 排序按钮事件监听
+        document.getElementById('distance-button').onclick = () => {
+            if (routes.length === 0) return;
+            
+            const combined = routes.map((r, i) => ({r, m: metrics[i]}));
+            combined.sort((a, b) => a.m.route_length - b.m.route_length);
+            routes = combined.map(o => o.r);
+            metrics = combined.map(o => o.m);
+            updateRouteList();
+        };
+
+        document.getElementById('safety-button').onclick = () => {
+            if (routes.length === 0) return;
+            
+            const combined = routes.map((r, i) => ({r, m: metrics[i]}));
+            combined.sort((a, b) => b.m.safety_score - a.m.safety_score);
+            routes = combined.map(o => o.r);
+            metrics = combined.map(o => o.m);
+            updateRouteList();
+        };
+
+        document.getElementById('comfort-button').onclick = () => {
+            if (routes.length === 0) return;
+            
+            const combined = routes.map((r, i) => ({r, m: metrics[i]}));
+            combined.sort((a, b) => b.m.comfort_score - a.m.comfort_score);
+            routes = combined.map(o => o.r);
+            metrics = combined.map(o => o.m);
+            updateRouteList();
+        };
+    </script>
+</body>
+</html>
